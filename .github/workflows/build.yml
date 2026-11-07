@@ -21,16 +21,21 @@ jobs:
           sudo apt-get clean
           df -h
 
-      - name: Install Legacy Dependencies & OpenJDK 7
+      - name: Install Legacy Dependencies & Setup Java 7
         run: |
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository ppa:openjdk-r/ppa -y
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2 openjdk-7-jdk
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libncurses-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2
           
-          # Python 2'yi varsayılan sistem python'u olarak ayarlama
+          # Python 2'yi varsayılan sistem python'u yapma
           sudo ln -sf /usr/bin/python2 /usr/bin/python
+          
+          # Java 7 Kurulumu (Ubuntu 22.04 deposunda olmadığı için doğrudan ikili paket çekilir)
+          mkdir -p ~/java7
+          cd ~/java7
+          wget https://archive.org/download/openjdk-7u75-b13-linux-x64-18_dec_2014.tar/openjdk-7u75-b13-linux-x64-18_dec_2014.tar.gz -O openjdk7.tar.gz || curl -sL https://github.com/alexey-kurochkin/openjdk7-binaries/raw/master/openjdk-7u75-b13-linux-x64-18_dec_2014.tar.gz -o openjdk7.tar.gz
+          tar -xzf openjdk7.tar.gz
+          echo "JAVA_HOME=$HOME/java7/java-se-7-ri" >> $GITHUB_ENV
+          echo "$HOME/java7/java-se-7-ri/bin" >> $GITHUB_PATH
 
       - name: Install Repo Tool
         run: |
@@ -48,16 +53,8 @@ jobs:
         run: |
           mkdir -p ~/android/aosp412
           cd ~/android/aosp412
-          # Sadece saf AOSP manifesti ve tek bir commit geçmişi (--depth=1)
           repo init -u https://android.googlesource.com/platform/manifest -b android-4.1.2_r1 --depth=1
           repo sync -c -j4 --no-clone-bundle --no-tags --current-branch
-
-      - name: Strip Debug Tools and Enforce Pure AOSP Config
-        run: |
-          cd ~/android/aosp412
-          # User/Release modunda derleme yapmak için varsayılan debug bayraklarını pasife alma
-          export TARGET_BUILD_VARIANT=user
-          # Varsayılan stok Android boot animasyonu varsayılan olarak framework/base içinde yer almaktadır.
 
       - name: Build Pure AOSP ROM
         run: |
@@ -66,7 +63,7 @@ jobs:
           export USE_CCACHE=0
           export LC_ALL=C
           
-          # Hata ayıklama araçlarını içermeyen 'user' hedefi seçimi (userdebug/eng yerine)
+          # Debug/Fazlalık araçlar barındırmayan 'user' derleme seçeneği
           lunch full_m7-user || lunch aosp_arm-user
           make -j$(nproc)
 
