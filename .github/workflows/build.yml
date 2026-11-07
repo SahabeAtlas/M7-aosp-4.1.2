@@ -1,11 +1,11 @@
-name: Build Pure Minimal AOSP 4.1.2 (Jelly Bean) for HTC One (m7)
+name: Build Pure AOSP 4.1.2 (No Docker) for HTC One (m7)
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout repository
@@ -21,18 +21,17 @@ jobs:
           sudo apt-get clean
           df -h
 
-      - name: Install Legacy Dependencies & Setup Java 7
+      - name: Install Dependencies & Python 2
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libncurses-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2
-          
-          # Python 2'yi varsayılan sistem python'u yapma
           sudo ln -sf /usr/bin/python2 /usr/bin/python
-          
-          # Java 7 Kurulumu (Ubuntu 22.04 deposunda olmadığı için doğrudan ikili paket çekilir)
+
+      - name: Setup Java 7
+        run: |
           mkdir -p ~/java7
           cd ~/java7
-          wget https://archive.org/download/openjdk-7u75-b13-linux-x64-18_dec_2014.tar/openjdk-7u75-b13-linux-x64-18_dec_2014.tar.gz -O openjdk7.tar.gz || curl -sL https://github.com/alexey-kurochkin/openjdk7-binaries/raw/master/openjdk-7u75-b13-linux-x64-18_dec_2014.tar.gz -o openjdk7.tar.gz
+          curl -sL https://github.com/alexey-kurochkin/openjdk7-binaries/raw/master/openjdk-7u75-b13-linux-x64-18_dec_2014.tar.gz -o openjdk7.tar.gz
           tar -xzf openjdk7.tar.gz
           echo "JAVA_HOME=$HOME/java7/java-se-7-ri" >> $GITHUB_ENV
           echo "$HOME/java7/java-se-7-ri/bin" >> $GITHUB_PATH
@@ -49,27 +48,25 @@ jobs:
           git config --global user.email "builder@example.com"
           git config --global user.name "Builder"
 
-      - name: Initialize Pure AOSP Source (Minimal Depth)
+      - name: Initialize and Sync AOSP 4.1.2
         run: |
           mkdir -p ~/android/aosp412
           cd ~/android/aosp412
           repo init -u https://android.googlesource.com/platform/manifest -b android-4.1.2_r1 --depth=1
           repo sync -c -j4 --no-clone-bundle --no-tags --current-branch
 
-      - name: Build Pure AOSP ROM
+      - name: Build AOSP ROM
         run: |
           cd ~/android/aosp412
           source build/envsetup.sh
           export USE_CCACHE=0
           export LC_ALL=C
-          
-          # Debug/Fazlalık araçlar barındırmayan 'user' derleme seçeneği
           lunch full_m7-user || lunch aosp_arm-user
           make -j$(nproc)
 
-      - name: Upload Stock AOSP Artifacts
+      - name: Upload Artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Pure-AOSP-4.1.2-m7
+          name: AOSP-4.1.2-m7-NoDocker
           path: ~/android/aosp412/out/target/product/*/*.img
