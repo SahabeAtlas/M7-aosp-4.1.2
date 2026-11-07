@@ -1,0 +1,78 @@
+name: Build Pure Minimal AOSP 4.1.2 (Jelly Bean) for HTC One (m7)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Maximize Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /opt/hostedtoolcache
+          sudo apt-get clean
+          df -h
+
+      - name: Install Legacy Dependencies & OpenJDK 7
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository ppa:openjdk-r/ppa -y
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python2 openjdk-7-jdk
+          
+          # Python 2'yi varsayılan sistem python'u olarak ayarlama
+          sudo ln -sf /usr/bin/python2 /usr/bin/python
+
+      - name: Install Repo Tool
+        run: |
+          mkdir -p ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "builder@example.com"
+          git config --global user.name "Builder"
+
+      - name: Initialize Pure AOSP Source (Minimal Depth)
+        run: |
+          mkdir -p ~/android/aosp412
+          cd ~/android/aosp412
+          # Sadece saf AOSP manifesti ve tek bir commit geçmişi (--depth=1)
+          repo init -u https://android.googlesource.com/platform/manifest -b android-4.1.2_r1 --depth=1
+          repo sync -c -j4 --no-clone-bundle --no-tags --current-branch
+
+      - name: Strip Debug Tools and Enforce Pure AOSP Config
+        run: |
+          cd ~/android/aosp412
+          # User/Release modunda derleme yapmak için varsayılan debug bayraklarını pasife alma
+          export TARGET_BUILD_VARIANT=user
+          # Varsayılan stok Android boot animasyonu varsayılan olarak framework/base içinde yer almaktadır.
+
+      - name: Build Pure AOSP ROM
+        run: |
+          cd ~/android/aosp412
+          source build/envsetup.sh
+          export USE_CCACHE=0
+          export LC_ALL=C
+          
+          # Hata ayıklama araçlarını içermeyen 'user' hedefi seçimi (userdebug/eng yerine)
+          lunch full_m7-user || lunch aosp_arm-user
+          make -j$(nproc)
+
+      - name: Upload Stock AOSP Artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pure-AOSP-4.1.2-m7
+          path: ~/android/aosp412/out/target/product/*/*.img
